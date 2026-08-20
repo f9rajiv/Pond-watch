@@ -1,123 +1,236 @@
-# Garden Spine ladybug starter
+# Pond Watch
 
-The shared starting point for one Garden Spine team and one ESP32 kit.
+## Botanical Garden Pond Monitoring System
 
-`GardenSpine.h` handles Wi-Fi, the clock, TLS, MQTT reconnection, topic construction, and JSON
-formatting. You write the line that says what you measured. Everything else — sensing, timing,
-movement, enclosure, interpretation — is yours.
+**Group:** AQUA
+**Team:** Sam, Nhat, Rajiv, Darren
+**Project period:** 10 August 2026 to 21 August 2026
+**Deployment:** University of Oulu Botanical Garden
 
-## Start here
+## 1. Project
 
-Two pages on the programme site, in this order:
+Pond Watch is an ESP32 based system for monitoring the pond at the University of Oulu Botanical Garden.
 
-1. **[Set up your laptop](https://gardenspine.ikapo.fi/setup)** — Arduino IDE, ESP32 support, the
-   three libraries, and installing this repository as a library. About 30 minutes, once.
-2. **[Tutorial 01 — Hello, spine](https://gardenspine.ikapo.fi/tutorial/01)** — your credentials,
-   your first message, and a green dot on the dashboard. About 15 minutes.
+The system measures:
 
-Everything after that is on the [tutorials](https://gardenspine.ikapo.fi/tutorial/01) and your
-[charter page](https://gardenspine.ikapo.fi/projects).
+* Pond water pH using the SEN0161
+* Ambient temperature and humidity using the DHT11
+* Water level using the HC-SR04
+* Sensor values and system status on a 0.96 inch I2C OLED
+* Remote readings through Wi-Fi and Blynk
 
-To keep your team's work, fork this repository and read the
-[short git guide](https://gardenspine.ikapo.fi/git). You do not need git to finish tutorial 01.
+An MG669R TowerPro servo moves the pH probe using a single DOF articulated arm. The probe is lowered into the pond for measurement and then raised again.
 
-## The examples
+The design changed during the first week after testing the available components and the first mechanical version.
 
-Open them from **File → Examples → GardenSpine** once the library is installed.
+## 2. Hardware
 
-| Example | Tutorial | What it proves |
-|---|---|---|
-| `01_FirstMessage` | [01](https://gardenspine.ikapo.fi/tutorial/01) | your device reaches the backbone |
-| `02_ClimateNode` | [02](https://gardenspine.ikapo.fi/tutorial/02) | a real DHT11 value arrives and changes |
-| `03_Subscribe` | [03](https://gardenspine.ikapo.fi/tutorial/03) | you receive another team's messages |
-| `04_ServoReaction` | [04](https://gardenspine.ikapo.fi/tutorial/04) | incoming data drives a servo without blocking |
-| `05_DeliberateError` | [05](https://gardenspine.ikapo.fi/tutorial/05) | a bad message is stored and explained, not lost |
+| Component                  | Purpose                          |
+| -------------------------- | -------------------------------- |
+| ESP32                      | Main controller                  |
+| SEN0161                    | Water pH measurement             |
+| DHT11                      | Ambient temperature and humidity |
+| HC-SR04                    | Water level estimation           |
+| 0.96 inch I2C OLED         | Local display                    |
+| MG669R Tower Pro           | Probe arm actuator               |
+| 4 x AA batteries           | Servo power                      |
+| 3D printed arm and housing | Probe deployment mechanism       |
+| Wi-Fi                      | Wireless connection              |
+| Blynk                      | Remote monitoring                |
 
-`05_DeliberateError` sends `"C"` instead of `"celsius"` on purpose. It is supposed to be rejected.
+A water temperature sensor and turbidity sensor were not available, so they were removed from the design. The DHT11 is therefore used for ambient temperature rather than water temperature.
 
-## What you can call
+## 3. Wiring
 
-```cpp
-#include <GardenSpine.h>
+The electronics were assembled around the ESP32 using a breadboard during testing.
 
-GardenSpine spine;
+| Device       | ESP32 connection      | Notes                                         |
+| ------------ | --------------------- | --------------------------------------------- |
+| SEN0161      | ADC input             | Analog pH signal                              |
+| DHT11        | Digital GPIO          | Temperature and humidity                      |
+| HC-SR04      | Trigger and Echo GPIO | Echo requires suitable ESP32 voltage handling |
+| OLED         | I2C SDA / SCL         | OLED address: `0x3C`                          |
+| MG669R    | Servo control GPIO    | Separate supply used for servo                |
+| Servo supply | 4 x AA, about 6 V     | Not powered directly from the ESP32           |
 
-void setup() {
-  Serial.begin(115200);
-  spine.begin();          // Wi-Fi, clock, TLS, MQTT. Call once.
-}
+The exact GPIO numbers should be kept in the current ESP32 source code as the wiring reference. The important power decision was to keep the MG669R on its own approximately 6 V supply instead of connecting it directly to the 9 V battery supplied with the ESP32 kit.
 
-void loop() {
-  spine.loop();           // Keeps the connection alive. Call every loop, never inside a delay.
-  spine.publish("temperature", 23.4, "celsius");   // number
-  spine.publish("status", "ok", "enum");           // text
-}
-```
+## 4. Mechanical Design
 
-| Call | Returns | Notes |
-|---|---|---|
-| `spine.begin()` | — | Connects. Call once in `setup()`. |
-| `spine.loop()` | — | Call at the top of every `loop()`. Reconnects and resubscribes by itself. |
-| `spine.connected()` | `bool` | True when Wi-Fi and MQTT are both up. |
-| `spine.publish(measurement, value, unit)` | `bool` | `value` may be a number or text. Returns false and says why if the sensor returned no number. |
-| `spine.subscribe(topic, handler)` | `bool` | Up to 8 topics. Works before or after `begin()`. |
+The final mechanism uses a single articulated arm with direct servo drive.
 
-Your handler receives readable text, not raw bytes:
+The arm is approximately:
 
-```cpp
-void showCounter(const char* topic, const char* payload) {
-  Serial.println(payload);
-}
+* Length: 220 mm
+* Width: 18 mm
+* Thickness: 10 mm
+* Moving assembly: approximately 120 g
 
-spine.subscribe("garden/entrance/counter/gk-01/count", showCounter);
-```
+The first actuator tested was an SG90. It could move the unloaded mechanism, but its approximately 1.8 kg/cm stall torque was below the calculated static requirement.
 
-The topic is built for you from `config.h` plus the measurement you pass:
-`garden/<zone>/<device-type>/<device-id>/<measurement>`. Every payload carries the five contract
-fields, so you never format JSON by hand. See the
-[data contract](https://gardenspine.ikapo.fi/spec) for what the backbone accepts.
+For the loaded arm:
 
-## No board yet?
+`τ = 0.22 x 0.12 x 9.81`
 
-`laptop/` publishes from your laptop with Python, so a team without hardware can still reach the
-dashboard on day one.
+This gives approximately **0.259 N m**, or **2.64 kg/cm**.
 
-```bash
-cd laptop
-python -m pip install paho-mqtt
-cp config.py.example config.py     # then fill in your credentials
-python first_message.py
-```
+The MG669R was selected because its rated torque is approximately **5.5 kg/cm at 4.8 V**. This gives about a 2.08 times torque margin over the calculated static requirement.
 
-Put the downloaded CA certificate beside `config.py` as `garden-spine-ca.crt`.
+The MG669R is a continuous rotation servo, so the system does not command a normal target angle. Instead, movement is controlled using calibrated pulse duration and timing.
 
-## What is in here
+Current calibration gives approximately:
 
-| Path | What it is |
-|---|---|
-| `src/GardenSpine.h` | the library. You never edit this |
-| `src/spine_ca.h` | the programme CA, baked in so nobody has to paste a certificate. Public, not a secret |
-| `config.h.example` | template for your credentials. Copy it into your sketch folder as `config.h` |
-| `examples/` | the five tutorial sketches |
-| `laptop/` | the Python publisher, for teams without hardware |
-| `docs/HARDWARE.md` | kit inventory and electrical safety. **Read before wiring motors or the relay** |
-| `BUILD_LOG.md` | your fortnightly evidence log, a programme deliverable |
+* Arm movement: 75 degrees
+* Lowering time: 0.65 s
+* Raising time: 0.61 s
 
-## Team deliverables
+## 5. Software
 
-- A working project sketch in your fork.
-- [`BUILD_LOG.md`](BUILD_LOG.md), updated twice each week.
-- A short calibration or engineering evaluation.
-- A documented cross-team subscription.
-- One creative measurement under your own device topic.
-- A final README with your wiring, limitations, and evidence from the dashboard.
+The first ESP32 program used sequential operations and `delay()` calls. This caused problems because the controller could not handle other tasks normally while the arm was moving.
 
-## Rules
+The software was changed to use `millis()` based timing.
 
-- Never commit `config.h` or `laptop/config.py`. They hold your password.
-- Never use `client.setInsecure()`. A certificate error is a real error.
-- Never publish over plaintext port `1883`.
-- Never publish under another team's device prefix. The broker refuses it anyway.
+Different tasks now run at different intervals:
 
-Stuck? [Troubleshooting](https://gardenspine.ikapo.fi/troubleshooting) lists every reject reason
-with the fix.
+| Task  | Approximate interval |
+| ----- | -------------------: |
+| pH    |                  1 s |
+| OLED  |                  1 s |
+| DHT11 |                  2 s |
+| Blynk |                  2 s |
+
+The pH reading uses an average of 10 ADC samples instead of relying on a single reading. This reduced short term variation in the raw measurement.
+
+The DHT11 and HC-SR04 also have basic error handling. Failed DHT11 readings and HC-SR04 timeouts are not treated as normal sensor values.
+
+## 6. Dashboard
+
+Blynk was added for remote monitoring.
+
+The dashboard receives the sensor data from the ESP32 over Wi-Fi. During testing, the Blynk update interval was set to approximately 2 seconds to avoid sending unnecessary updates.
+
+Dashboard evidence should be included here:
+
+**Dashboard screenshot:**
+
+The screenshot should show the live pH, temperature, humidity and water level values.
+
+**Serial Monitor evidence:**
+
+This should show the ESP32 reading the sensors and reporting the system status.
+
+## 7. Testing Evidence
+
+### pH sensor
+
+The SEN0161 was connected directly to the ESP32 ADC and tested in a test liquid.
+
+During approximately 30 seconds of testing, the displayed pH changed by approximately 0.2 pH units. Ten ADC readings were then averaged to reduce short term variation.
+
+**Evidence:**
+
+
+### Servo and arm
+
+The SG90 was rejected after the torque calculation showed that its approximately 1.8 kg/cm rating was below the estimated 2.64 kg/cm static requirement.
+
+The MG669R successfully moved the loaded mechanism.
+
+**Evidence:**
+
+### OLED
+
+The 0.96 inch OLED was tested successfully. Its I2C address was found to be `0x3C`.
+
+**Evidence:**
+
+### 3D printed mechanism
+
+The first print-in-place hinge used approximately 0.15 mm clearance. After printing, the moving surfaces fused and the hinge could not articulate.
+
+The hinge was redesigned with approximately 0.4 mm clearance.
+
+**Evidence:**
+
+### Software timing
+
+The original blocking `delay()` approach was replaced with `millis()` timing. This allows the ESP32 to continue handling sensor updates and Blynk communication while the servo mechanism is operating.
+
+**Evidence:**
+
+## 8. Current Limitations
+
+There are several limitations in the current version.
+
+1. **No water temperature measurement**
+   The DHT11 measures ambient temperature. It does not measure the pond water temperature.
+
+2. **No turbidity measurement**
+   A suitable turbidity sensor was not available during development.
+
+3. **Servo position is time based**
+   The MG669R is a continuous rotation servo. The arm position is controlled through calibrated movement time rather than direct position feedback.
+
+4. **Mechanical repeatability still needs testing**
+   The first mounting structure moved by approximately 8 mm during upward movement. The redesigned structure needs repeated cycle testing to confirm that the arm returns to the same position.
+
+5. **3D printing takes time**
+   The revised assembly required approximately 4 hours and 20 minutes to print. This limited the number of physical design iterations.
+
+6. **pH readings require calibration and stable conditions**
+   The SEN0161 reading changes during operation, so the probe needs proper calibration and enough time in the water before relying on a measurement.
+
+7. **The HC-SR04 gives an estimated water level**
+   The sensor measures distance to the water surface. It does not directly measure water volume.
+
+## 9. What Changed During Development
+
+The original plan was to test the individual sensors and then combine the electronics and mechanical system.
+
+The main changes were made after testing.
+
+The SG90 was replaced by the MG669R because the SG90 did not provide enough torque for the calculated load. The original hinge was also redesigned because the 0.15 mm clearance was too small for the 3D printing process.
+
+The software was changed from blocking `delay()` calls to `millis()` timing. This was needed so the ESP32 could continue handling the other system functions while the probe mechanism was moving.
+
+
+## 10. Next Tests
+
+The remaining work is mainly system testing.
+
+* Complete the revised arm assembly.
+* Test the 0.4 mm hinge clearance after printing.
+* Run at least 10 complete raise and lower cycles.
+* Check for binding and position drift.
+* Check that the pH probe returns to approximately the same position.
+* Test the complete pH measurement sequence.
+* Confirm that Blynk communication continues while the arm is moving.
+* Complete the OLED display.
+* Test all sensors together.
+* Begin Garden Spine communication.
+* Record the final servo timing and repeated-cycle results.
+
+## 11. Evidence Checklist
+
+* [ ] ESP32 wiring photo
+* [ ] SEN0161 pH test photo
+* [ ] DHT11 test output
+* [ ] HC-SR04 test output
+* [ ] OLED display photo
+* [ ] MG669R servo test photo
+* [ ] 3D printed arm photo
+* [ ] Revised hinge photo
+* [ ] CAD screenshot
+* [ ] ESP32 code screenshot
+* [ ] Serial Monitor screenshot
+* [ ] Blynk dashboard screenshot
+* [ ] Full system test photo or video
+* [ ] Repeated 10 cycle test results
+
+## 12. Summary
+
+Pond Watch now has the main sensing, display, communication and mechanical components working as separate parts and has started operating them together.
+
+The biggest changes during Week 1 came from actual hardware testing. The SG90 was not strong enough for the calculated load, the first printed hinge had too little clearance, and blocking servo delays interfered with the ESP32 software. These issues were addressed by moving to the MG669R, increasing the hinge clearance to approximately 0.4 mm and changing the software to `millis()` timing.
+
+The next step is to test the complete mechanism repeatedly and verify that the sensing, probe movement, OLED and Blynk dashboard all work together.
