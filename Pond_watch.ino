@@ -1,9 +1,11 @@
 #define BLYNK_TEMPLATE_ID "TMPL4VUO8vNZB"
 #define BLYNK_TEMPLATE_NAME "Water monitoring"
-#define BLYNK_AUTH_TOKEN    ""
+#define BLYNK_AUTH_TOKEN    ENV_BLYNK_AUTH_TOKEN
 
 #include <WiFi.h>
 #include <BlynkSimpleEsp32.h>
+#include <Arduino.h>
+#include <ArduinoEnv.h>
 
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -41,7 +43,6 @@ char pass[] = "";
 #define TRIG_PIN        26
 #define ECHO_PIN        27
 #define SERVO_PIN       13
-#define RED_LED_PIN     12
 
 /************************************************************
  * OLED CONFIGURATION
@@ -180,6 +181,9 @@ void loop()
   updateServoSweep();
 
   ph.calibration(analogRead(PH_PIN), temperature);
+  
+  publishGardenSpine();
+
 }
 
 /************************************************************
@@ -373,3 +377,64 @@ void updateBlynk()
   }
 }
 
+/************************************************************
+ * GARDEN SPINE PUBLISH
+ ************************************************************/
+ void publishGardenSpine()
+ {
+   unsigned long currentMillis = millis();
+ 
+   if (currentMillis - lastGardenSpinePublish >= GARDENSPINE_INTERVAL)
+   {
+     lastGardenSpinePublish = currentMillis;
+ 
+     // Water level as percentage
+     float waterLevelPercent = waterLevel * 100.0;
+ 
+     // Keep percentage within 0-100
+     if (waterLevelPercent < 0.0) {
+       waterLevelPercent = 0.0;
+     }
+ 
+     if (waterLevelPercent > 100.0) {
+       waterLevelPercent = 100.0;
+     }
+ 
+     // Publish water level
+     spine.publish(
+       "waterlevel",
+       waterLevelPercent,
+       "percent"
+     );
+ 
+     // Status enum
+     int status;
+ 
+     if (phAbnormal && waterLevel > 0.0)
+     {
+       status = 2;   // SWEEP ACTIVE
+     }
+     else if (phAbnormal)
+     {
+       status = 1;   // pH ALERT
+     }
+     else
+     {
+       status = 0;   // NORMAL
+     }
+ 
+     spine.publish(
+       "status",
+       status,
+       "enum"
+     );
+ 
+     Serial.println("GardenSpine published:");
+     Serial.print("Water Level: ");
+     Serial.print(waterLevelPercent);
+     Serial.println(" %");
+ 
+     Serial.print("Status: ");
+     Serial.println(status);
+   }
+ }
