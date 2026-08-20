@@ -11,13 +11,13 @@ const char* SPINE_MQTT_HOST = "gardenspine.ikapo.fi";
 const int SPINE_MQTT_PORT = 8883;
 
 // From your credential slip. The MQTT username is the same as the device ID.
-const char* SPINE_DEVICE_ID = "gm-01";
-const char* SPINE_MQTT_USERNAME = "gm-01";
-const char* SPINE_MQTT_PASSWORD = "[DEVICE_PASSWORD]";
+const char* SPINE_DEVICE_ID = "po-01";
+const char* SPINE_MQTT_USERNAME = "po-01";
+const char* SPINE_MQTT_PASSWORD = "QjTXbJDj-vpb5VRHNB0beYMA";
 
 // From your charter page. These must match the registry exactly.
-const char* SPINE_ZONE = "greenhouse-1";
-const char* SPINE_DEVICE_TYPE = "climate-node";
+const char* SPINE_ZONE = "pond";
+const char* SPINE_DEVICE_TYPE = "pond-node";
 
 // Your own version string. Bump it so you can tell which build is running.
 const char* SPINE_FIRMWARE_VERSION = "0.1.0";
