@@ -1,0 +1,17 @@
+#!/bin/sh
+# Block direct pushes to main. Merge through pull requests instead.
+
+protected_branch='main'
+current_branch="$(git symbolic-ref --short HEAD 2>/dev/null)"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/"$protected_branch")
+      echo "Direct pushes to '$protected_branch' are blocked."
+      echo "Work on your team branch (sam, nhat, or darren), then open a pull request."
+      exit 1
+      ;;
+  esac
+done
+
+exit 0
